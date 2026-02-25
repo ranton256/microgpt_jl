@@ -1,11 +1,11 @@
 """
 GPT model definition using Flux.jl.
 
-Decoder-only transformer following GPT-2 architecture with:
+Decoder-only transformer matching the Python microgpt.py architecture:
 - RMSNorm (no learnable parameters) instead of LayerNorm
-- Squared ReLU activation instead of GeLU
+- Plain ReLU activation (not GeLU)
 - No biases anywhere
-- Weight tying between token embeddings and output projection
+- Separate lm_head (no weight tying)
 """
 
 # ---------------------------------------------------------------------------- #
@@ -31,9 +31,6 @@ function (m::RMSNorm)(x::AbstractArray)
     return x .* scale
 end
 
-"""Squared ReLU activation: relu(x)^2"""
-squared_relu(x) = NNlib.relu(x) .^ 2
-
 # ---------------------------------------------------------------------------- #
 # Transformer block
 # ---------------------------------------------------------------------------- #
@@ -53,19 +50,18 @@ end
 
 Flux.@layer TransformerBlock trainable=(norm1, attn_wq, attn_wk, attn_wv, attn_wo, norm2, mlp_fc1, mlp_fc2)
 
-function TransformerBlock(n_embd::Int, n_head::Int; init_std=0.02f0)
+function TransformerBlock(n_embd::Int, n_head::Int; init_std=0.08f0)
     head_dim = n_embd ÷ n_head
     init = (dims...) -> randn(Float32, dims...) .* init_std
-    zero_init = (dims...) -> zeros(Float32, dims...)
     TransformerBlock(
         RMSNorm(),
         Dense(n_embd => n_embd, bias=false; init=init),
         Dense(n_embd => n_embd, bias=false; init=init),
         Dense(n_embd => n_embd, bias=false; init=init),
-        Dense(n_embd => n_embd, bias=false; init=zero_init),  # zero init
+        Dense(n_embd => n_embd, bias=false; init=init),   # same init as others (#7)
         RMSNorm(),
         Dense(n_embd => 4*n_embd, bias=false; init=init),
-        Dense(4*n_embd => n_embd, bias=false; init=zero_init),  # zero init
+        Dense(4*n_embd => n_embd, bias=false; init=init),  # same init as others (#7)
         n_head,
         head_dim,
     )
@@ -118,11 +114,11 @@ function (blk::TransformerBlock)(x::AbstractArray, mask::AbstractArray)
 
     x = blk.attn_wo(out) .+ residual
 
-    # --- MLP ---
+    # --- MLP --- (plain ReLU, #3)
     residual = x
     x_norm = blk.norm2(x)
     x = blk.mlp_fc1(x_norm)
-    x = squared_relu(x)
+    x = NNlib.relu(x)
     x = blk.mlp_fc2(x)
     x = x .+ residual
 
@@ -138,21 +134,23 @@ struct GPT
     wpe::Embedding      # position embeddings (block_size, n_embd)
     norm0::RMSNorm      # pre-transformer norm (applied after embeddings)
     blocks::Vector{TransformerBlock}
+    lm_head::Dense      # separate output projection (#2, no weight tying)
     vocab_size::Int
     block_size::Int
     n_embd::Int
 end
 
-Flux.@layer GPT trainable=(wte, wpe, norm0, blocks)
+Flux.@layer GPT trainable=(wte, wpe, norm0, blocks, lm_head)
 
 function GPT(; vocab_size::Int, n_embd::Int=16, n_layer::Int=1,
-               block_size::Int=8, n_head::Int=4, init_std::Float32=0.02f0)
+               block_size::Int=16, n_head::Int=4, init_std::Float32=0.08f0)
     init = (dims...) -> randn(Float32, dims...) .* init_std
     wte = Embedding(vocab_size => n_embd; init=init)
     wpe = Embedding(block_size => n_embd; init=init)
     norm0 = RMSNorm()
     blocks = [TransformerBlock(n_embd, n_head; init_std=init_std) for _ in 1:n_layer]
-    GPT(wte, wpe, norm0, blocks, vocab_size, block_size, n_embd)
+    lm_head = Dense(n_embd => vocab_size, bias=false; init=init)
+    GPT(wte, wpe, norm0, blocks, lm_head, vocab_size, block_size, n_embd)
 end
 
 function (m::GPT)(token_ids::AbstractArray{<:Integer})
@@ -178,14 +176,8 @@ function (m::GPT)(token_ids::AbstractArray{<:Integer})
         x = blk(x, mask)
     end
 
-    # Output projection via weight tying with wte
-    # wte.weight is (n_embd, vocab_size), so wte.weight' is (vocab_size, n_embd)
-    # logits = wte.weight' * x  →  (V, T, B)
-    W = m.wte.weight'  # (vocab_size, n_embd)
-    logits = NNlib.batched_mul(
-        reshape(W, m.vocab_size, m.n_embd, 1),  # (V, E, 1) — broadcast over batch
-        x  # (E, T, B)
-    )  # (V, T, B)
+    # Output projection via separate lm_head (#2)
+    logits = m.lm_head(x)  # (vocab_size, T, B)
 
     return logits
 end
@@ -260,11 +252,11 @@ function forward_cached(blk::TransformerBlock, x::AbstractArray, k_cached, v_cac
 
     x = blk.attn_wo(out) .+ residual
 
-    # --- MLP ---
+    # --- MLP --- (plain ReLU, #3)
     residual = x
     x_norm = blk.norm2(x)
     x = blk.mlp_fc1(x_norm)
-    x = squared_relu(x)
+    x = NNlib.relu(x)
     x = blk.mlp_fc2(x)
     x = x .+ residual
 
@@ -293,8 +285,8 @@ function generate_step(m::GPT, token_id::Int, pos::Int, cache::KVCache)
         cache.layers[i] = (k_new, v_new)
     end
 
-    # Output projection via weight tying
-    logits = m.wte.weight' * x[:, 1, 1]  # (vocab_size,)
+    # Output projection via separate lm_head (#2)
+    logits = m.lm_head.weight * x[:, 1, 1]  # (vocab_size,)
     return logits
 end
 

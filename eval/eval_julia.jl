@@ -29,7 +29,7 @@ model = GPT(
     vocab_size=tokenizer.vocab_size,
     n_embd=16,
     n_layer=1,
-    block_size=8,
+    block_size=16,
     n_head=4,
 )
 num_params = count_parameters(model)
@@ -45,13 +45,14 @@ using NNlib: softmax
 using StatsBase: Weights, sample
 
 learning_rate = 0.01
-beta1, beta2 = 0.9, 0.95
+beta1, beta2 = 0.85, 0.99
 
 model_dev = model |> device
 opt_state = setup(Adam(learning_rate, (beta1, beta2)), model_dev)
 
 block_size = model.block_size
 vocab_size_m = model.vocab_size
+bid = bos_id(tokenizer)
 
 losses_log = Float64[]
 
@@ -78,7 +79,7 @@ model_dev = GPT(
     vocab_size=tokenizer.vocab_size,
     n_embd=16,
     n_layer=1,
-    block_size=8,
+    block_size=16,
     n_head=4,
 ) |> device
 opt_state = setup(Adam(learning_rate, (beta1, beta2)), model_dev)
@@ -128,7 +129,7 @@ n_layer = length(model_dev.blocks)
 # Warmup: compile generate_step for all cache sizes (growing K/V tensors)
 let
     warmup_cache = KVCache(n_layer)
-    tid = MicroGPT.BOS_ID
+    tid = bid
     for p in 1:block_size
         generate_step(model_dev, tid, p, warmup_cache)
     end
@@ -139,8 +140,8 @@ Random.seed!(SEED)
 infer_start = time_ns()
 for i in 1:NUM_SAMPLES
     cache = KVCache(n_layer)
-    token_id = MicroGPT.BOS_ID
-    tokens = Int[MicroGPT.BOS_ID]
+    token_id = bid
+    tokens = Int[bid]
     for pos in 1:block_size
         logits = generate_step(model_dev, token_id, pos, cache)
         scaled = logits ./ temperature
@@ -154,7 +155,7 @@ for i in 1:NUM_SAMPLES
             probs_vec ./= total
         end
         next_token = sample(1:vocab_size_m, Weights(probs_vec))
-        next_token == MicroGPT.EOS_ID && break
+        next_token == bid && break  # BOS used as EOS
         token_id = next_token
         push!(tokens, next_token)
     end
@@ -177,9 +178,9 @@ results = Dict(
     "n_layer" => 1,
     "n_head" => 4,
     "adam_betas" => [beta1, beta2],
-    "init_std" => 0.02,
-    "activation" => "squared_relu",
-    "weight_tying" => true,
+    "init_std" => 0.08,
+    "activation" => "relu",
+    "weight_tying" => false,
     "training_time_s" => train_elapsed,
     "ms_per_step" => train_elapsed / NUM_STEPS * 1000,
     "inference_time_s" => infer_elapsed,

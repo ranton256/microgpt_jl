@@ -26,7 +26,7 @@ function parse_args()
             help = "Number of transformer layers"
         "--block_size"
             arg_type = Int
-            default = 8
+            default = 16
             help = "Maximum sequence length"
         "--n_head"
             arg_type = Int

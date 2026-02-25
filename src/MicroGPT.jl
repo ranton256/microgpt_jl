@@ -34,8 +34,8 @@ include("tokenizer.jl")
 include("model.jl")
 include("train.jl")
 
-export CharTokenizer, encode, decode, BOS_ID, EOS_ID
-export GPT, RMSNorm, squared_relu, count_parameters, KVCache, generate_step
+export CharTokenizer, encode, decode, bos_id
+export GPT, RMSNorm, count_parameters, KVCache, generate_step
 export load_dataset, train!, generate, get_device
 
 end # module

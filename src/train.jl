@@ -34,7 +34,7 @@ Arguments:
 """
 function train!(model, tokenizer::CharTokenizer, docs::Vector{String};
                 device=cpu, num_steps::Int=1000, learning_rate::Float64=0.01,
-                seed::Int=42, beta1::Float64=0.9, beta2::Float64=0.95)
+                seed::Int=42, beta1::Float64=0.85, beta2::Float64=0.99)
     Random.seed!(seed)
     shuffled_docs = shuffle(docs)
 
@@ -100,10 +100,12 @@ function generate(model, tokenizer::CharTokenizer;
 
     println("\n--- inference (new, hallucinated names) ---")
 
+    bid = bos_id(tokenizer)
+
     for i in 1:num_samples
         cache = KVCache(n_layer)
-        token_id = BOS_ID
-        tokens = Int[BOS_ID]
+        token_id = bid
+        tokens = Int[bid]
 
         for pos in 1:block_size
             logits = generate_step(model, token_id, pos, cache)
@@ -120,7 +122,7 @@ function generate(model, tokenizer::CharTokenizer;
             end
             # Sample next token
             next_token = sample(1:vocab_size, Weights(probs_vec))
-            next_token == EOS_ID && break
+            next_token == bid && break  # BOS used as EOS
             token_id = next_token
             push!(tokens, next_token)
         end

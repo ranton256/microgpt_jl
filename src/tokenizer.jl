@@ -1,8 +1,9 @@
 """
-Character-level tokenizer with BOS and EOS tokens.
+Character-level tokenizer with a BOS token used for both start and end of sequence.
 
-Builds a vocabulary from the dataset with special tokens at indices 1 and 2
-(Julia is 1-indexed). Characters are sorted and assigned indices starting at 3.
+Builds a vocabulary from the dataset. Characters are sorted and assigned indices
+starting at 1 (Julia is 1-indexed). The BOS token gets the last index, matching
+the Python original where BOS = len(uchars).
 """
 struct CharTokenizer
     stoi::Dict{String,Int}
@@ -11,43 +12,43 @@ struct CharTokenizer
 end
 
 const BOS_TOKEN = "<BOS>"
-const EOS_TOKEN = "<EOS>"
-const BOS_ID = 1
-const EOS_ID = 2
 
 function CharTokenizer(docs::Vector{String})
     # Collect unique characters across all documents, sorted
     chars = sort(collect(Set(join(docs))))
     stoi = Dict{String,Int}()
     itos = Dict{Int,String}()
-    # Reserve indices 1 and 2 for special tokens
-    stoi[BOS_TOKEN] = BOS_ID
-    stoi[EOS_TOKEN] = EOS_ID
-    itos[BOS_ID] = BOS_TOKEN
-    itos[EOS_ID] = EOS_TOKEN
+    # Characters get indices 1..n (matching Python's 0..n-1 but 1-indexed)
     for (i, ch) in enumerate(chars)
-        idx = i + 2  # start after BOS=1, EOS=2
-        stoi[string(ch)] = idx
-        itos[idx] = string(ch)
+        stoi[string(ch)] = i
+        itos[i] = string(ch)
     end
-    vocab_size = length(chars) + 2  # chars + BOS + EOS
+    # BOS gets the last index (matching Python: BOS = len(uchars))
+    bos_id = length(chars) + 1
+    stoi[BOS_TOKEN] = bos_id
+    itos[bos_id] = BOS_TOKEN
+    vocab_size = length(chars) + 1  # chars + BOS
     CharTokenizer(stoi, itos, vocab_size)
 end
 
+"""BOS token ID (last index in vocabulary)."""
+bos_id(tok::CharTokenizer) = tok.stoi[BOS_TOKEN]
+
 function encode(tok::CharTokenizer, text::String)
-    ids = Int[BOS_ID]
+    bid = bos_id(tok)
+    ids = Int[bid]
     for ch in text
         push!(ids, tok.stoi[string(ch)])
     end
-    push!(ids, EOS_ID)
+    push!(ids, bid)  # BOS used as EOS too
     return ids
 end
 
 function decode(tok::CharTokenizer, ids::Vector{Int})
+    bid = bos_id(tok)
     chars = String[]
     for id in ids
-        id == BOS_ID && continue
-        id == EOS_ID && break
+        id == bid && continue  # skip BOS at start; stop at BOS-as-EOS handled by caller
         push!(chars, tok.itos[id])
     end
     return join(chars)
