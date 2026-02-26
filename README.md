@@ -88,7 +88,7 @@ text length: 1115394 chars
 vocab size: 66
 num chunks: 4341 (block_size=256)
 num batches: 135 (batch_size=32)
-num params: 357536
+num params: 836096
 
 === Training ===
 total steps: 2025 (135 batches × 15 epochs), warmup: 202 steps
@@ -102,7 +102,7 @@ Final loss: 1.5832 (avg last 50: 1.7456)
 Checkpoint saved to checkpoints/shakespeare.jld2
 ```
 
-The default configuration uses `n_embd=128, n_layer=4, n_head=4, block_size=256` for a 357K-parameter model. You can experiment with smaller models for faster iteration:
+The default configuration uses `n_embd=128, n_layer=4, n_head=4, block_size=256` for an 836K-parameter model. You can experiment with smaller models for faster iteration:
 
 ```bash
 # Quick smoke test (~1 minute)
@@ -131,33 +131,38 @@ Lower temperatures produce more conservative text; higher temperatures increase 
 
 ### Example Shakespeare Output
 
-After training the default model (357K params, 15 epochs, final loss ~1.75), the model generates text like this:
+After training the default model (836K params, 15 epochs), here's actual output at temperature 0.8:
 
 ```
 === Sample 1 (256 chars) ===
-KING HENRY VI:
-My lord, the voics of heard a sone me father,
-And thou dost the dost stard for steen,
-And shall be stard the prince with me the world.
+VECIO:
+What hat hare nis heree con asis merany tin.
 
-GLOUCESTER:
-Was he some to the prince was thou say
-To be a mort to this a send me
+MELARY STIUS:
+Alt thige quetll the sofff bibrt frepiong arss;
+Tir hebe heavel's mier wesherangh oonw cilds
+Bate melfth totont that thig! n'
+HESAMIO:
+Tlllll ithe le isoule burer mo lis ofarn tad t head?
+T
 ```
 
 ```
 === Sample 2 (256 chars) ===
-SICINIUS:
-He shall not be so with the come the man,
-The city and the some the with the with him.
+I
+What bryoult are riour ith in owncanth thist mawnt thtee,
 
-CORIOLANUS:
-Sir, the sould of the do not to be so
-To shall the people, and the bood and some
-That sir to my lord,
+Bust weche bulile thound thal ith han'd were hith alle hey
+winder, oun hanthe rave rinerlend tave
+Orin I uresh heag itet sin dives ase.
+
+
+HAUCIUS:
+Colo, oo you Greanit feay mp-danor;
+I mas hathe
 ```
 
-It's not Shakespeare, but the model has clearly learned character names, dialogue structure, verse formatting, and English-like word patterns — all from a 357K-parameter model trained on a single CPU in about 15 minutes.
+It's clearly not Shakespeare — but the model has picked up character name formatting (all-caps followed by colon), verse-like line structure, English letter patterns, and punctuation placement. Not bad for an 836K-parameter model trained on a single CPU. A larger model or more epochs would improve coherence significantly.
 
 ### Run Tests
 
@@ -212,7 +217,7 @@ The model exactly matches Karpathy's Python microgpt:
 
 ### Shakespeare model (default config)
 - `vocab_size=66, n_embd=128, n_layer=4, n_head=4, block_size=256`
-- 357,536 parameters
+- 836,096 parameters
 - Trains in ~15 minutes on CPU
 
 ## Performance Comparison (Names Task)
