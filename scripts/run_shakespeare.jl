@@ -63,6 +63,12 @@ function parse_args()
         "--log_interval"
             arg_type = Int; default = 10
             help = "Print loss every N steps"
+        "--checkpoint"
+            arg_type = String; default = "checkpoints/shakespeare.jld2"
+            help = "Path to save the model checkpoint"
+        "--no_save"
+            action = :store_true
+            help = "Skip saving checkpoint after training"
     end
     return ArgParse.parse_args(s)
 end
@@ -121,6 +127,15 @@ function main()
             t_elapsed, t_elapsed / length(losses) * 1000)
     @printf("Final loss: %.4f (avg last 50: %.4f)\n",
             losses[end], sum(losses[max(1,end-49):end]) / min(50, length(losses)))
+
+    # Save checkpoint
+    if !args["no_save"]
+        ckpt_path = args["checkpoint"]
+        if !isabspath(ckpt_path)
+            ckpt_path = joinpath(@__DIR__, "..", ckpt_path)
+        end
+        save_checkpoint(ckpt_path, model, tokenizer)
+    end
 
     # Generate final samples
     println("\n=== Final Generation ===")

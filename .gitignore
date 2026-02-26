@@ -1,0 +1,8 @@
+# Checkpoints
+checkpoints/
+
+# Data files
+*.txt
+
+# Claude
+.claude/
