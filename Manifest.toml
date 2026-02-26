@@ -1,6 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.12.3"
+julia_version = "1.12.5"
 manifest_format = "2.0"
 project_hash = "58d921eb1e9c4ec542e9adf0f011e986441219dc"
 
@@ -622,7 +622,7 @@ version = "1.11.0"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
-version = "2025.5.20"
+version = "2025.11.4"
 
 [[deps.NNlib]]
 deps = ["Adapt", "Atomix", "ChainRulesCore", "GPUArraysCore", "KernelAbstractions", "LinearAlgebra", "Random", "ScopedValues", "Statistics"]
