@@ -37,5 +37,6 @@ include("train.jl")
 export CharTokenizer, encode, decode, bos_id
 export GPT, RMSNorm, count_parameters, KVCache, generate_step
 export load_dataset, train!, generate, get_device
+export load_shakespeare, chunk_text, make_batches, train_batched!, generate_long
 
 end # module
