@@ -8,6 +8,12 @@ Karpathy's microgpt distills a decade of work (micrograd, makemore, nanoGPT) int
 
 This Julia port started as a faithful 1:1 reimplementation. We first matched the Python original exactly — same architecture (RMSNorm, ReLU, no biases, separate lm_head), same hyperparameters, same 4,192-parameter model, same names dataset. Once the two implementations produced equivalent results, we scaled up to a much more interesting task: training on Shakespeare's collected works.
 
+## Motivation
+
+Karpathy's original microgpt is pure Python with no dependencies — beautiful for understanding the algorithms, but slow to train anything beyond a toy dataset. You could reach for PyTorch to speed things up, but reimplementing in Julia felt like a more natural fit.
+
+Julia was designed in the age of GPUs, and it shows. GPU acceleration isn't bolted on after the fact — it's woven into the language and ecosystem from the ground up. With [Flux.jl](https://fluxml.ai/), you write your model once and `Flux.gpu` sends it to whatever accelerator is available: CPU, NVIDIA GPUs via [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl), or Apple GPUs via [Metal.jl](https://github.com/JuliaGPU/Metal.jl) — no code changes required. Julia's multiple dispatch and JIT compilation also mean the CPU path is fast out of the box (our names training runs 70x faster than the pure-Python original), making it a practical choice for taking microgpt from a pedagogical exercise to something you can train on real text in a reasonable amount of time.
+
 ## How it was built
 
 This project was built collaboratively with [Claude Code](https://claude.ai/claude-code) (Anthropic's AI coding agent). The development followed a natural progression:
@@ -183,6 +189,8 @@ microgpt_jl/
   eval/
     eval_julia.jl       # Benchmarking script for Python/Julia comparison
 ```
+
+The source implementation is **786 lines** across 5 files, compared to Karpathy's ~200-line single-file original. The difference reflects the additional functionality — mini-batched Shakespeare training, KV-cached generation, checkpoint persistence, and CLI tooling — rather than verbosity. The test suite adds another **556 lines** across 6 files.
 
 ## Architecture
 
