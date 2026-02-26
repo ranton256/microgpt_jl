@@ -98,9 +98,8 @@ function (blk::TransformerBlock)(x::AbstractArray, mask::AbstractArray)
     scale = Float32(1.0 / sqrt(Float64(hd)))
     attn = NNlib.batched_mul(permutedims(k, (2, 1, 3)), q) .* scale  # (T, T, nh*B)
 
-    # Apply causal mask: mask is (T, T), true where allowed
-    # Set masked positions to -Inf
-    attn = attn .+ ifelse.(mask, 0f0, Float32(-Inf))
+    # Apply causal mask: mask is (T, T) with 0 where allowed, -Inf where masked
+    attn = attn .+ mask
 
     attn = NNlib.softmax(attn; dims=1)  # softmax over key dimension (dim 1)
 
@@ -163,14 +162,16 @@ function (m::GPT)(token_ids::AbstractArray{<:Integer})
 
     # Embeddings: Flux Embedding expects indices, returns (n_embd, length)
     tok_emb = m.wte(token_ids)   # (n_embd, T, B)
-    pos_ids = collect(1:T)       # (T,) — same positions for all batches
-    pos_emb = m.wpe(pos_ids)     # (n_embd, T)
+    pos_ids = collect(1:T)       # (T,) — same positions for all batches (CPU is fine for Embedding lookup)
+    pos_emb = m.wpe(pos_ids)     # (n_embd, T) — Embedding handles device transfer
 
     x = tok_emb .+ pos_emb      # broadcast pos_emb across batch dim
     x = m.norm0(x)
 
-    # Causal mask: lower triangular (T, T)
-    mask = _causal_mask(T, token_ids)
+    # Causal mask: lower triangular (T, T) — excluded from AD (constant w.r.t. parameters)
+    mask = Flux.ignore_derivatives() do
+        _causal_mask(T, token_ids)
+    end
 
     for blk in m.blocks
         x = blk(x, mask)
@@ -182,13 +183,19 @@ function (m::GPT)(token_ids::AbstractArray{<:Integer})
     return logits
 end
 
-"""Build a causal (lower-triangular) mask on the same device as token_ids."""
+"""
+Build a causal (lower-triangular) additive mask on the same device as token_ids.
+
+Returns a Float32 matrix (T, T) with 0 where attention is allowed and -Inf where masked.
+mask[i,j] = 0 means position j can attend to position i (i <= j is causal).
+Since our attn scores are (key_pos, query_pos), we want key_pos <= query_pos.
+"""
 function _causal_mask(T::Int, token_ids::AbstractArray)
-    # Returns a Bool matrix (T, T) that is true where attention is allowed
-    # mask[i,j] = true means position j can attend to position i (i <= j is causal)
-    # Since our attn scores are (key_pos, query_pos), we want key_pos <= query_pos
-    mask = [i <= j for i in 1:T, j in 1:T]
-    return mask
+    vals = Float32[i <= j ? 0f0 : Float32(-Inf) for i in 1:T, j in 1:T]
+    # Transfer mask to same device as input (GPU-safe)
+    out = similar(token_ids, Float32, T, T)
+    copyto!(out, vals)
+    return out
 end
 
 # ---------------------------------------------------------------------------- #

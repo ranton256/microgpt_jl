@@ -10,13 +10,15 @@ using Printf: @printf
 using MicroGPT
 
 # Helper function to capture stdout (Julia 1.12 compatible)
+# Saves and restores original stdout explicitly to avoid EPIPE issues.
 function capture_out(f)
+    old_stdout = stdout
     rd, wr = redirect_stdout()
     try
         f()
         flush(stdout)
     finally
-        redirect_stdout()
+        redirect_stdout(old_stdout)
         close(wr)
     end
     output = read(rd, String)

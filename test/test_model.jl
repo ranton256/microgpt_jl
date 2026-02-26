@@ -74,13 +74,14 @@
         ids = [1, 2, 3]
         mask = MicroGPT._causal_mask(3, ids)
         @test size(mask) == (3, 3)
-        # mask[i,j] = (i <= j): key position i can attend to query position j
-        @test mask[1, 1] == true
-        @test mask[1, 2] == true
-        @test mask[2, 1] == false
-        @test mask[3, 3] == true
-        @test mask[3, 1] == false
-        @test mask[3, 2] == false
+        @test eltype(mask) == Float32
+        # mask[i,j] = 0 where allowed (i <= j), -Inf where masked
+        @test mask[1, 1] == 0f0     # key 1 attends to query 1
+        @test mask[1, 2] == 0f0     # key 1 attends to query 2
+        @test mask[2, 1] == -Inf32  # key 2 cannot attend to query 1
+        @test mask[3, 3] == 0f0     # key 3 attends to query 3
+        @test mask[3, 1] == -Inf32  # key 3 cannot attend to query 1
+        @test mask[3, 2] == -Inf32  # key 3 cannot attend to query 2
     end
 
     @testset "count_parameters" begin

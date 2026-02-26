@@ -112,7 +112,7 @@ function generate(model, tokenizer::CharTokenizer;
             # Apply temperature
             scaled = logits ./ temperature
             probs = softmax(scaled)
-            probs_vec = Float64.(vec(probs))
+            probs_vec = Float64.(vec(cpu(probs)))  # move to CPU for sampling
             probs_vec = max.(probs_vec, 0.0)
             total = sum(probs_vec)
             if total <= 0
@@ -292,7 +292,7 @@ function generate_long(model, tokenizer::CharTokenizer;
             logits = generate_step(model, token_id, pos, cache)
             scaled = logits ./ temperature
             probs = softmax(scaled)
-            probs_vec = Float64.(vec(probs))
+            probs_vec = Float64.(vec(cpu(probs)))  # move to CPU for sampling
             probs_vec = max.(probs_vec, 0.0)
             total = sum(probs_vec)
             total <= 0 ? (probs_vec .= 1.0 / length(probs_vec)) : (probs_vec ./= total)

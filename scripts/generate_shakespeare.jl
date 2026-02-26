@@ -10,6 +10,10 @@ Usage:
 using Pkg
 Pkg.activate(joinpath(@__DIR__, ".."))
 
+# Load GPU backend (if available) before MicroGPT
+try using CUDA catch end
+try using Metal catch end
+
 using ArgParse
 using MicroGPT
 using Printf: @printf

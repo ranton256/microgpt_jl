@@ -22,7 +22,8 @@ This project was built collaboratively with [Claude Code](https://claude.ai/clau
 2. **Architecture alignment** — Systematically match all 7 architectural differences against the Python original (BOS/EOS handling, weight tying, activation function, init scale, Adam betas, block size, output projection init) until the Julia model produced numerically equivalent results with identical parameter counts.
 3. **Shakespeare scaling** — Add mini-batched epoch training with cosine LR scheduling and linear warmup, chunked text encoding, and continuous text generation to handle the 1.1M-character tiny-shakespeare dataset.
 4. **Checkpoint persistence** — Add JLD2-based model serialization so you can train once and generate forever, plus a standalone inference CLI.
-5. **Test suite** — 157 test assertions across 5 files covering tokenizer, model, training, checkpoints, and end-to-end integration.
+5. **GPU acceleration** — Add Metal.jl and CUDA.jl support with automatic device detection, including a workaround for NNlib's missing Metal batched GEMM kernel.
+6. **Test suite** — 125 test assertions across 5 files covering tokenizer, model, training, checkpoints, and end-to-end integration.
 
 Each step was planned, implemented, tested, and committed before moving to the next — the git history tells the full story.
 
@@ -30,11 +31,12 @@ Each step was planned, implemented, tested, and committed before moving to the n
 
 - **Character-level GPT** matching Karpathy's architecture: RMSNorm, ReLU, no biases, separate lm_head
 - **Two workflows**: names generation (toy, trains in seconds) and Shakespeare (trains in ~15 minutes on CPU)
+- **GPU acceleration**: Apple Metal via [Metal.jl](https://github.com/JuliaGPU/Metal.jl), NVIDIA CUDA via [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) — auto-detected at runtime
 - **Mini-batched training** with linear warmup + cosine LR decay
 - **KV-cached autoregressive generation** for efficient inference
 - **Checkpoint save/load** via JLD2 — train once, generate anytime
 - **CLI scripts** with full ArgParse support for all hyperparameters
-- **Comprehensive test suite** (157 assertions, runs in ~25 seconds)
+- **Comprehensive test suite** (125 assertions, runs in ~26 seconds)
 
 ## Quick Start
 
@@ -233,6 +235,24 @@ Both implementations trained on 32K names for 1,000 steps with identical hyperpa
 | Inference (10 samples) | 0.34s | 0.33s |
 
 Julia trains **~70x faster** than the pure-Python original on the names task. This is expected — Karpathy's microgpt uses no external libraries (no NumPy, no PyTorch), implementing autograd from scratch in pure Python. The Julia port uses Flux.jl which leverages optimized BLAS routines and compiled code.
+
+## GPU Support
+
+The scripts automatically detect and use available GPU hardware:
+
+- **Apple Metal** — via [Metal.jl](https://github.com/JuliaGPU/Metal.jl) (tested on Apple M-series)
+- **NVIDIA CUDA** — via [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl)
+
+No code changes needed — just install the relevant GPU package:
+
+```bash
+julia --project=. -e 'using Pkg; Pkg.add("Metal")'   # Apple Silicon
+julia --project=. -e 'using Pkg; Pkg.add("CUDA")'     # NVIDIA
+```
+
+The training and inference scripts will automatically detect and use the GPU. On Apple Silicon, the default 836K-parameter Shakespeare model trains about **2x faster** on Metal compared to CPU.
+
+**Note:** Metal.jl support is experimental. NNlib does not yet provide a native Metal kernel for batched matrix multiplication, so MicroGPT includes a generic fallback (per-slice matmul) that works but adds some kernel launch overhead. Larger models benefit more from GPU acceleration; for the smallest models (like the 4K-parameter names model), CPU may actually be faster.
 
 ## Credits
 
