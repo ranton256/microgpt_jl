@@ -30,7 +30,7 @@ Each step was planned, implemented, tested, and committed before moving to the n
 ## Features
 
 - **Character-level GPT** matching Karpathy's architecture: RMSNorm, ReLU, no biases, separate lm_head
-- **Two workflows**: names generation (toy, trains in seconds) and Shakespeare (trains in ~15 minutes on CPU)
+- **Two workflows**: names generation (toy, trains in seconds) and Shakespeare (trains in ~2 minutes on GPU, ~15 minutes on CPU)
 - **GPU acceleration**: Apple Metal via [Metal.jl](https://github.com/JuliaGPU/Metal.jl), NVIDIA CUDA via [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) — auto-detected at runtime
 - **Mini-batched training** with linear warmup + cosine LR decay
 - **KV-cached autoregressive generation** for efficient inference
@@ -240,19 +240,32 @@ Julia trains **~70x faster** than the pure-Python original on the names task. Th
 
 The scripts automatically detect and use available GPU hardware:
 
+- **NVIDIA CUDA** — via [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl) + [cuDNN.jl](https://github.com/JuliaGPU/CUDA.jl) (tested on RTX 3060)
 - **Apple Metal** — via [Metal.jl](https://github.com/JuliaGPU/Metal.jl) (tested on Apple M-series)
-- **NVIDIA CUDA** — via [CUDA.jl](https://github.com/JuliaGPU/CUDA.jl)
 
 No code changes needed — just install the relevant GPU package:
 
 ```bash
-julia --project=. -e 'using Pkg; Pkg.add("Metal")'   # Apple Silicon
-julia --project=. -e 'using Pkg; Pkg.add("CUDA")'     # NVIDIA
+# NVIDIA
+julia --project=. -e 'using Pkg; Pkg.add("CUDA"); Pkg.add("cuDNN")'
+
+# Apple Silicon
+julia --project=. -e 'using Pkg; Pkg.add("Metal")'
 ```
 
-The training and inference scripts will automatically detect and use the GPU. On Apple Silicon, the default 836K-parameter Shakespeare model trains about **2x faster** on Metal compared to CPU.
+The training and inference scripts will automatically detect and use the GPU.
 
-**Note:** Metal.jl support is experimental. NNlib does not yet provide a native Metal kernel for batched matrix multiplication, so MicroGPT includes a generic fallback (per-slice matmul) that works but adds some kernel launch overhead. Larger models benefit more from GPU acceleration; for the smallest models (like the 4K-parameter names model), CPU may actually be faster.
+### GPU Benchmarks (Shakespeare, 836K params)
+
+| Backend | ms/step | Speedup vs CPU |
+|---------|---------|----------------|
+| CPU (Apple Silicon) | ~1918 | 1.0x |
+| Metal (Apple M-series) | ~890 | ~2.2x |
+| CUDA (RTX 3060) | ~64 | ~30x |
+
+CUDA's large advantage over Metal comes from native cuBLAS batched GEMM support. Metal lacks a native batched GEMM kernel, so MicroGPT includes a generic fallback (per-slice matmul) that works but adds kernel launch overhead.
+
+For the smallest models (like the 4K-parameter names model), CPU may actually be faster due to GPU transfer overhead.
 
 ## Credits
 

@@ -35,14 +35,14 @@ end
 Detect the best available compute device.
 Returns a function that moves arrays/models to the device.
 
-Note: GPU backends (Metal.jl, CUDA.jl) must be loaded by the caller
-before calling this function. For example:
-    using Metal   # or: using CUDA
+Note: GPU backends must be loaded by the caller before calling this
+function. For example:
+    using CUDA; using cuDNN   # or: using Metal
     using MicroGPT
-    device = get_device()   # → returns gpu
+    device = get_device()     # → returns gpu
 """
 function get_device()
-    dev = Flux.get_device()
+    dev = Flux.gpu_device()
     devname = string(typeof(dev))
     if contains(devname, "CUDA")
         println("Using CUDA GPU")
